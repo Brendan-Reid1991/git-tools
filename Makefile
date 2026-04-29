@@ -1,29 +1,28 @@
 PREFIX ?= $(HOME)/.local
 BINDIR ?= $(PREFIX)/bin
-LIBDIR ?= $(PREFIX)/lib
 SCRIPTS := git-superadd git-newbranch git-superpush
-LIBS := git-tools-common.sh
+SUPPORT_FILES := git-tools-common.sh
 
 .PHONY: install uninstall doctor test
 
 install:
-	@mkdir -p "$(BINDIR)" "$(LIBDIR)"
+	@mkdir -p "$(BINDIR)"
 	@for script in $(SCRIPTS); do \
 		install -m 0755 "bin/$$script" "$(BINDIR)/$$script"; \
 	done
-	@for lib in $(LIBS); do \
-		install -m 0644 "lib/$$lib" "$(LIBDIR)/$$lib"; \
+	@for file in $(SUPPORT_FILES); do \
+		install -m 0644 "lib/$$file" "$(BINDIR)/$$file"; \
 	done
-	@echo "Installed scripts to $(BINDIR) and libraries to $(LIBDIR)"
+	@echo "Installed scripts and support files to $(BINDIR)"
 
 uninstall:
 	@for script in $(SCRIPTS); do \
 		rm -f "$(BINDIR)/$$script"; \
 	done
-	@for lib in $(LIBS); do \
-		rm -f "$(LIBDIR)/$$lib"; \
+	@for file in $(SUPPORT_FILES); do \
+		rm -f "$(BINDIR)/$$file"; \
 	done
-	@echo "Removed scripts from $(BINDIR) and libraries from $(LIBDIR)"
+	@echo "Removed scripts and support files from $(BINDIR)"
 
 doctor:
 	@echo "Checking install health..."
@@ -38,11 +37,11 @@ doctor:
 			echo "Missing: $$script"; \
 		fi; \
 	done
-	@for lib in $(LIBS); do \
-		if [ -f "$(LIBDIR)/$$lib" ]; then \
-			echo "OK: $$lib -> $(LIBDIR)/$$lib"; \
+	@for file in $(SUPPORT_FILES); do \
+		if [ -f "$(BINDIR)/$$file" ]; then \
+			echo "OK: $$file -> $(BINDIR)/$$file"; \
 		else \
-			echo "Missing: $$lib in $(LIBDIR)"; \
+			echo "Missing: $$file in $(BINDIR)"; \
 		fi; \
 	done
 
