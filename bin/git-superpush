@@ -25,6 +25,9 @@ Options:
   -n, --dry-run      Pass --dry-run to git push.
       --no-verify    Pass --no-verify to git push.
   -h, --help         Show this help.
+
+Note: git >= 2.37 supports `git config push.autoSetupRemote true`,
+which makes plain `git push` set upstream on first push by itself.
 EOF
 }
 

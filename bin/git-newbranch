@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# git-tools-bootstrap:begin
 __here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR source=../lib/git-tools-common.sh
 source "${GIT_TOOLS_LIB_DIR:-${__here}/../lib}/git-tools-common.sh"
 unset __here
+# git-tools-bootstrap:end
 
 usage() {
   cat <<'EOF'

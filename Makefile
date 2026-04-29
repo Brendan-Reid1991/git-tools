@@ -1,28 +1,57 @@
-PREFIX ?= $(HOME)/.local
-BINDIR ?= $(PREFIX)/bin
-SCRIPTS := git-superadd git-newbranch git-superpush
+PREFIX     ?= $(HOME)/.local
+BINDIR     ?= $(PREFIX)/bin
+SHAREDIR   ?= $(PREFIX)/share/git-tools
+DESTDIR    ?=
+
+SCRIPTS       := git-superadd git-newbranch git-superpush
 SUPPORT_FILES := git-tools-common.sh
 
-.PHONY: install uninstall doctor test
+SHELLCHECK ?= shellcheck
+
+INSTALL_BIN   := $(DESTDIR)$(BINDIR)
+INSTALL_SHARE := $(DESTDIR)$(SHAREDIR)
+
+.PHONY: all install uninstall doctor test lint help
+
+all: help
+
+help:
+	@echo "Targets:"
+	@echo "  install     Install scripts to $(BINDIR), library to $(SHAREDIR)"
+	@echo "  uninstall   Remove only the files this Makefile installs"
+	@echo "  doctor      Verify install layout and PATH"
+	@echo "  test        Run smoke tests"
+	@echo "  lint        Run shellcheck on bin/, lib/, test/"
+	@echo ""
+	@echo "Variables: PREFIX=$(PREFIX) BINDIR=$(BINDIR) SHAREDIR=$(SHAREDIR) DESTDIR=$(DESTDIR)"
 
 install:
-	@mkdir -p "$(BINDIR)"
-	@for script in $(SCRIPTS); do \
-		install -m 0755 "bin/$$script" "$(BINDIR)/$$script"; \
-	done
+	@install -d "$(INSTALL_BIN)" "$(INSTALL_SHARE)"
 	@for file in $(SUPPORT_FILES); do \
-		install -m 0644 "lib/$$file" "$(BINDIR)/$$file"; \
+		install -m 0644 "lib/$$file" "$(INSTALL_SHARE)/$$file"; \
 	done
-	@echo "Installed scripts and support files to $(BINDIR)"
+	@for script in $(SCRIPTS); do \
+		awk -v lib='$(SHAREDIR)' ' \
+			$$0 == "# git-tools-bootstrap:begin" { in_block = 1; \
+				print "source \"$${GIT_TOOLS_LIB_DIR:-" lib "}/git-tools-common.sh\""; \
+				next } \
+			$$0 == "# git-tools-bootstrap:end"   { in_block = 0; next } \
+			!in_block \
+		' "bin/$$script" > "$(INSTALL_BIN)/$$script"; \
+		chmod 0755 "$(INSTALL_BIN)/$$script"; \
+	done
+	@echo "Installed scripts to $(INSTALL_BIN)"
+	@echo "Installed support files to $(INSTALL_SHARE)"
 
 uninstall:
 	@for script in $(SCRIPTS); do \
-		rm -f "$(BINDIR)/$$script"; \
+		rm -f "$(INSTALL_BIN)/$$script"; \
 	done
 	@for file in $(SUPPORT_FILES); do \
-		rm -f "$(BINDIR)/$$file"; \
+		rm -f "$(INSTALL_SHARE)/$$file"; \
 	done
-	@echo "Removed scripts and support files from $(BINDIR)"
+	@rmdir "$(INSTALL_SHARE)" 2>/dev/null || true
+	@echo "Removed git-tools from $(INSTALL_BIN) and $(INSTALL_SHARE)"
 
 doctor:
 	@echo "Checking install health..."
@@ -38,12 +67,15 @@ doctor:
 		fi; \
 	done
 	@for file in $(SUPPORT_FILES); do \
-		if [ -f "$(BINDIR)/$$file" ]; then \
-			echo "OK: $$file -> $(BINDIR)/$$file"; \
+		if [ -f "$(SHAREDIR)/$$file" ]; then \
+			echo "OK: $$file -> $(SHAREDIR)/$$file"; \
 		else \
-			echo "Missing: $$file in $(BINDIR)"; \
+			echo "Missing: $(SHAREDIR)/$$file"; \
 		fi; \
 	done
 
 test:
 	@bash test/smoke.sh
+
+lint:
+	@$(SHELLCHECK) -x bin/git-* lib/*.sh test/*.sh
