@@ -1,52 +1,67 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_LIB="${SCRIPT_DIR}/git-tools-common.sh"
-if [[ ! -f "${COMMON_LIB}" ]]; then
-  COMMON_LIB="${SCRIPT_DIR}/../lib/git-tools-common.sh"
-fi
-if [[ ! -f "${COMMON_LIB}" ]]; then
-  printf 'Error: unable to locate git-tools-common.sh\n' >&2
-  exit 1
-fi
-source "${COMMON_LIB}"
+# git-tools-bootstrap:begin
+__here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR source=../lib/git-tools-common.sh
+source "${GIT_TOOLS_LIB_DIR:-${__here}/../lib}/git-tools-common.sh"
+unset __here
+# git-tools-bootstrap:end
 
 usage() {
   cat <<'EOF'
-Usage: git superadd [files...] -m "commit message"
+Usage: git superadd [options] [--] [<file>...] -m <message>
+
+Stages files (or, with -a/--all, every change) and commits them. If a
+pre-commit hook modifies tracked files, the hook-modified files are
+re-staged and the commit is retried up to --max-attempts times.
+
+Options:
+  -m, --message <msg>   Commit message (required).
+  -a, --all             Stage all changes (equivalent to `git add -A`)
+                        when no <file> arguments are provided.
+      --max-attempts N  Maximum commit attempts (default: 3).
+  -h, --help            Show this help.
 
 Examples:
-  git superadd file1.txt file2.txt -m "chore: update files"
-  git superadd -m "feat: commit everything staged + unstaged"
+  git superadd src/main.sh -m "fix: tighten argument parsing"
+  git superadd -a -m "chore: snapshot all local changes"
 EOF
 }
 
-require_git_repo
-
 MESSAGE=""
+ALL=0
+MAX_ATTEMPTS=3
 FILES=()
 
 while (($#)); do
   case "$1" in
     -m|--message)
       shift
-      if (($# == 0)); then
-        die "missing commit message after -m/--message."
-      fi
+      (($#)) || { usage >&2; usage_error "missing commit message after -m/--message."; }
       MESSAGE="$1"
+      ;;
+    -a|--all)
+      ALL=1
+      ;;
+    --max-attempts)
+      shift
+      (($#)) || { usage >&2; usage_error "missing value after --max-attempts."; }
+      [[ "$1" =~ ^[1-9][0-9]*$ ]] || { usage >&2; usage_error "--max-attempts must be a positive integer."; }
+      MAX_ATTEMPTS="$1"
+      ;;
+    -h|--help)
+      usage
+      exit 0
       ;;
     --)
       shift
-      while (($#)); do
-        FILES+=("$1")
-        shift
-      done
+      while (($#)); do FILES+=("$1"); shift; done
       break
       ;;
     -*)
       usage >&2
-      die "unknown option: $1"
+      usage_error "unknown option: $1"
       ;;
     *)
       FILES+=("$1")
@@ -55,22 +70,45 @@ while (($#)); do
   shift
 done
 
+require_git_repo
+
 if [[ -z "$MESSAGE" ]]; then
   usage >&2
-  die "commit message is required."
+  usage_error "commit message is required (-m)."
 fi
 
-if ((${#FILES[@]} > 0)); then
-  git add "${FILES[@]}"
-else
-  git add -A
+if ((${#FILES[@]} == 0 && ALL == 0)); then
+  usage >&2
+  usage_error "no files specified; pass paths or use -a/--all to stage everything."
 fi
 
-for attempt in {1..5}; do
+restage() {
+  if ((${#FILES[@]} > 0)); then
+    git add -- "${FILES[@]}"
+  else
+    git add -A
+  fi
+}
+
+restage
+
+prev_state=""
+for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
   if git commit -m "$MESSAGE"; then
     exit 0
   fi
-  printf 'Commit failed, retrying (%d/5)...\n' "$attempt" >&2
+
+  current_state="$(git status --porcelain=v1)"
+  if [[ "$current_state" == "$prev_state" ]]; then
+    die "commit failed and no files changed since last attempt; aborting retry."
+  fi
+  prev_state="$current_state"
+
+  if ((attempt < MAX_ATTEMPTS)); then
+    printf 'Commit failed; re-staging hook-modified files and retrying (%d/%d)...\n' \
+      "$attempt" "$MAX_ATTEMPTS" >&2
+    restage
+  fi
 done
 
-die "commit failed after 5 attempts."
+die "commit failed after ${MAX_ATTEMPTS} attempts."

@@ -1,31 +1,89 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_LIB="${SCRIPT_DIR}/git-tools-common.sh"
-if [[ ! -f "${COMMON_LIB}" ]]; then
-  COMMON_LIB="${SCRIPT_DIR}/../lib/git-tools-common.sh"
-fi
-if [[ ! -f "${COMMON_LIB}" ]]; then
-  printf 'Error: unable to locate git-tools-common.sh\n' >&2
-  exit 1
-fi
-source "${COMMON_LIB}"
+# git-tools-bootstrap:begin
+__here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR source=../lib/git-tools-common.sh
+source "${GIT_TOOLS_LIB_DIR:-${__here}/../lib}/git-tools-common.sh"
+unset __here
+# git-tools-bootstrap:end
+
+usage() {
+  cat <<'EOF'
+Usage: git superpush [options]
+
+Pushes the current branch. On first push, sets upstream automatically
+to <remote>/<branch>, where <remote> is resolved in this order:
+
+  1. branch.<name>.pushRemote
+  2. remote.pushDefault
+  3. the upstream's remote (if already configured)
+  4. "origin" (if it exists)
+
+Options:
+  -f, --force        Use --force-with-lease --force-if-includes (safe force).
+  -n, --dry-run      Pass --dry-run to git push.
+      --no-verify    Pass --no-verify to git push.
+  -h, --help         Show this help.
+EOF
+}
+
+FORCE=0
+DRY_RUN=0
+NO_VERIFY=0
+
+while (($#)); do
+  case "$1" in
+    -f|--force)   FORCE=1 ;;
+    -n|--dry-run) DRY_RUN=1 ;;
+    --no-verify)  NO_VERIFY=1 ;;
+    -h|--help)    usage; exit 0 ;;
+    --)           shift; break ;;
+    -*)           usage >&2; usage_error "unknown option: $1" ;;
+    *)            usage >&2; usage_error "unexpected argument: $1" ;;
+  esac
+  shift
+done
 
 require_git_repo
 
-if ! BRANCH="$(current_branch)"; then
-  error "detached HEAD (no current branch)."
-  exit 3
+BRANCH="$(current_branch)" || true
+if [[ -z "${BRANCH}" ]]; then
+  die "detached HEAD (no current branch)."
 fi
 
-if ! git remote get-url origin >/dev/null 2>&1; then
-  error "remote 'origin' is not configured."
-  exit 4
-fi
+resolve_push_remote() {
+  local remote
+  remote="$(git config --get "branch.${BRANCH}.pushRemote" 2>/dev/null || true)"
+  [[ -n "$remote" ]] && { printf '%s\n' "$remote"; return 0; }
+
+  remote="$(git config --get remote.pushDefault 2>/dev/null || true)"
+  [[ -n "$remote" ]] && { printf '%s\n' "$remote"; return 0; }
+
+  local upstream
+  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+  if [[ -n "$upstream" ]]; then
+    printf '%s\n' "${upstream%%/*}"
+    return 0
+  fi
+
+  if git remote get-url origin >/dev/null 2>&1; then
+    printf '%s\n' "origin"
+    return 0
+  fi
+
+  return 1
+}
+
+REMOTE="$(resolve_push_remote)" || die "no push remote configured (set branch.${BRANCH}.pushRemote, remote.pushDefault, an upstream, or add an 'origin' remote)."
+
+PUSH_ARGS=()
+((FORCE))     && PUSH_ARGS+=(--force-with-lease --force-if-includes)
+((DRY_RUN))   && PUSH_ARGS+=(--dry-run)
+((NO_VERIFY)) && PUSH_ARGS+=(--no-verify)
 
 if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-  git push
+  git push ${PUSH_ARGS[@]+"${PUSH_ARGS[@]}"}
 else
-  git push --set-upstream origin "$BRANCH"
+  git push --set-upstream ${PUSH_ARGS[@]+"${PUSH_ARGS[@]}"} "$REMOTE" "$BRANCH"
 fi

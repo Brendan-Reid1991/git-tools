@@ -1,26 +1,59 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_LIB="${SCRIPT_DIR}/git-tools-common.sh"
-if [[ ! -f "${COMMON_LIB}" ]]; then
-  COMMON_LIB="${SCRIPT_DIR}/../lib/git-tools-common.sh"
-fi
-if [[ ! -f "${COMMON_LIB}" ]]; then
-  printf 'Error: unable to locate git-tools-common.sh\n' >&2
-  exit 1
-fi
-source "${COMMON_LIB}"
+__here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${GIT_TOOLS_LIB_DIR:-${__here}/../lib}/git-tools-common.sh"
+unset __here
 
 usage() {
-  echo "Usage: git newbranch <branch-name>" >&2
+  cat <<'EOF'
+Usage: git newbranch <name> [<base>]
+
+Creates and switches to a new branch. If <base> is given the new branch
+starts from that ref; otherwise it starts from the current HEAD.
+
+Options:
+  -h, --help    Show this help.
+
+Examples:
+  git newbranch feature/parser
+  git newbranch hotfix/login origin/main
+EOF
 }
+
+NAME=""
+BASE=""
+
+consume_positional() {
+  if [[ -z "$NAME" ]]; then NAME="$1"
+  elif [[ -z "$BASE" ]]; then BASE="$1"
+  else usage >&2; usage_error "too many positional arguments."
+  fi
+}
+
+while (($#)); do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --)
+      shift
+      while (($#)); do consume_positional "$1"; shift; done
+      break
+      ;;
+    -*)        usage >&2; usage_error "unknown option: $1" ;;
+    *)         consume_positional "$1" ;;
+  esac
+  shift
+done
 
 require_git_repo
 
-if (($# != 1)); then
-  usage
-  exit 2
+if [[ -z "$NAME" ]]; then
+  usage >&2
+  usage_error "branch name is required."
 fi
 
-git switch -c "$1"
+if [[ -n "$BASE" ]]; then
+  git switch -c "$NAME" "$BASE"
+else
+  git switch -c "$NAME"
+fi
