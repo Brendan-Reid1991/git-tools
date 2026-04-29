@@ -3,6 +3,15 @@ set -euo pipefail
 
 # Smoke tests for git-tools. Exercises positive paths against real repos
 # (created in temp dirs) and a few important negative paths.
+#
+# shellcheck disable=SC2015
+# Justification: throughout this file we use the idiom
+#   out="$(cd "$DIR" && some-cmd 2>&1 || true)"
+# in negative-path tests. We want to capture the output of `some-cmd` even
+# when it exits non-zero (which is the whole point of the test) without
+# letting `set -e` abort the script. The `cd` is a guard around tmp dirs
+# we just created, so SC2015's "C may run when A is true" warning does not
+# apply in practice.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
