@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_LIB="${SCRIPT_DIR}/../lib/git-tools-common.sh"
+if [[ ! -f "${COMMON_LIB}" ]]; then
+  COMMON_LIB="${SCRIPT_DIR}/lib/git-tools-common.sh"
+fi
+if [[ ! -f "${COMMON_LIB}" ]]; then
+  printf 'Error: unable to locate git-tools-common.sh\n' >&2
+  exit 1
+fi
+source "${COMMON_LIB}"
+
+require_git_repo
+
+if ! BRANCH="$(current_branch)"; then
+  error "detached HEAD (no current branch)."
+  exit 3
+fi
+
+if ! git remote get-url origin >/dev/null 2>&1; then
+  error "remote 'origin' is not configured."
+  exit 4
+fi
+
+if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+  git push
+else
+  git push --set-upstream origin "$BRANCH"
+fi

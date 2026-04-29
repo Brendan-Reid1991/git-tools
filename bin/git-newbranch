@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_LIB="${SCRIPT_DIR}/../lib/git-tools-common.sh"
+if [[ ! -f "${COMMON_LIB}" ]]; then
+  COMMON_LIB="${SCRIPT_DIR}/lib/git-tools-common.sh"
+fi
+if [[ ! -f "${COMMON_LIB}" ]]; then
+  printf 'Error: unable to locate git-tools-common.sh\n' >&2
+  exit 1
+fi
+source "${COMMON_LIB}"
+
+usage() {
+  echo "Usage: git newbranch <branch-name>" >&2
+}
+
+require_git_repo
+
+if (($# != 1)); then
+  usage
+  exit 2
+fi
+
+git switch -c "$1"
