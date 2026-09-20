@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+bin_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+commands_dir="$bin_dir/../lib/commands"
+
+case "${1:-}" in
+  ""|-h|--help)
+    printf 'Usage: gra <command> [arguments...]\n'
+    exit 0
+    ;;
+esac
+
+command_name="$1"
+shift
+
+# Accept simple command names, preventing paths such as ../../something.
+if [[ ! "$command_name" =~ ^[a-z][a-z0-9-]*$ ]]; then
+  printf 'Invalid command name: %s\n' "$command_name" >&2
+  exit 2
+fi
+
+command_file="$commands_dir/$command_name.sh"
+
+if [[ ! -f "$command_file" ]]; then
+  printf 'Unknown command: %s\n' "$command_name" >&2
+  exit 2
+fi
+
+exec bash "$command_file" "$@"
