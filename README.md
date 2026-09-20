@@ -1,45 +1,8 @@
-# git-tools
+# GRA - Git Replacer, Almost
 
 [![CI](https://github.com/Brendan-Reid1991/git-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/Brendan-Reid1991/git-tools/actions/workflows/ci.yml)
 
-Small Bash helpers exposed as Git subcommands. This repo exists primarily
-for me to avoid setting up my git config on a new machine each time.
-
-## Included commands
-
-### `git superadd`
-
-Stage files and commit. If a pre-commit hook modifies tracked files, the
-modifications are re-staged and the commit is retried automatically.
-
-**Why?** Having to manually re-stage and re-commit after a pre-commit
-hook fails and performs edits in-place is tedious. This removes that
-tedium by automatically retrying the add/commit loop, while still
-failing fast when a hook complains for a real reason.
-
-### `git newbranch`
-
-Create and switch to a new branch, optionally from a specific base
-branch.
-
-**Why?** Personally I find both `git checkout -b` and `git switch -c`
-less intuitive than `git newbranch`.
-
-### `git superpush`
-
-Push the current branch, resolving the push remote from config and
-setting upstream automatically on first push.
-
-**Why?** I usually forget to set my upstreams prior to pushing a new
-branch for the first time. This one was written before I discovered
-that the git config can do this anyway:
-
-```bash
-git config --global push.autoSetupRemote true
-git config --global push.default current
-```
-
-Leaving it here as a monument to man's arrogance.
+Originally this package extended the `git` namespace to save me some time in my day-to-day working. Now I'm targeting a full CLI to ~ kind of ~ replace `git.
 
 ## Install
 
