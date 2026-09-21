@@ -2,7 +2,7 @@
 set -euo pipefail
 
 bin_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-commands_dir="$bin_dir/../lib/commands" # gra-install-path$
+commands_dir="$bin_dir/../lib/commands" # gra-install-path
 
 filename_regex=".*/([^/]+)\.sh$"
 
